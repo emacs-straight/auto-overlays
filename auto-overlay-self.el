@@ -1,4 +1,4 @@
-;;; auto-overlay-self.el --- self-delimited automatic overlays  -*- lexical-binding: t; -*-
+;;; auto-overlay-self.el --- self-delimited automatic overlays    -*- lexical-binding: t; -*-
 
 ;; Copyright (C) 2005-2020  Free Software Foundation, Inc
 
@@ -25,10 +25,12 @@
 
 ;;; Code:
 
-(require 'auto-overlays)
 (provide 'auto-overlay-self)
+(require 'auto-overlays)
+
 
 (defvar auto-o-pending-self-cascade nil)
+(make-variable-buffer-local 'auto-o-pending-self-cascade)
 
 ;; set self overlay parsing and suicide functions
 (put 'self 'auto-overlay-parse-function #'auto-o-parse-self-match)
@@ -45,17 +47,13 @@
   ;; so that any cascading that is required is performed before anything else
   ;; happens.
   (add-hook 'before-change-functions #'auto-o-perform-self-cascades
-	    nil t)
-  ;; initialise variables
-  (setq auto-o-pending-self-cascade nil)
-)
+	    nil t))
 
 
 (defun auto-o-self-unload ()
   ;; Remove `auto-o-perform-self-cascades' from `before-change-functions'.
   (remove-hook 'before-change-functions #'auto-o-perform-self-cascades t)
-)
-
+  (setq auto-o-pending-self-cascade nil))
 
 
 
@@ -109,6 +107,9 @@
 	  ;; end match which is now matched with start of new one
 	  (auto-o-match-overlay o nil o-match 'no-props nil 'protect-match))
 
+	;; cascade new overlay one step
+	(when overlay-list (auto-o-self-cascade (list o-new (car overlay-list))))
+
       ;; return newly created overlay
       o-new))
      ))
@@ -152,8 +153,7 @@
 	   'unmatched)))
       ;; add parent to uncascaded overlay list
       (push o-parent auto-o-pending-self-cascade))
-     ))
-)
+     )))
 
 
 
@@ -195,13 +195,17 @@
   ;; buffer is modified. Called from `before-change-functions'.
 
   ;; check all overlays waiting to be cascaded, from first in buffer to last
-  (dolist (o (sort auto-o-pending-self-cascade
-		   (lambda (a b) (< (overlay-start a) (overlay-start b)))))
+  (dolist (o (sort auto-o-pending-self-cascade #'auto-overlay-<))
     ;; if buffer modification occurs after the end of an overlay waiting to be
     ;; cascaded, cascade all overlays between it and the modified text
-    (when (and (overlay-end o) (< (overlay-end o) end))
-      (auto-o-self-cascade (auto-o-self-list (overlay-get o 'start) end))))
-)
+    (when (and (overlay-start o) (<= (overlay-start o) beg))
+      (auto-o-self-cascade (auto-o-self-list
+			    (overlay-get o 'start)
+			    (max (save-excursion
+				   (goto-char (overlay-end o))
+				   (line-end-position))
+				 end))))
+    ))
 
 
 
@@ -279,14 +283,9 @@
 ;; 			(push o overlay-list)))
 ;; 	  (auto-overlays-in
 ;; 	   (point-min) (point-max)
-;; 	   (list
 ;; 	    '(identity auto-overlay)
-;; 	    (list 'eq 'set-id (overlay-get o-start 'set-id))
-;; 	    (list 'eq 'definition-id (overlay-get o-start 'definition-id)))))
-;;     ;; sort the list by start position, from first to last
-;;     (sort overlay-list
-;; 	  (lambda (a b) (< (overlay-start a) (overlay-start b)))))
-;; )
+;; 	    `(eq set-id ,(overlay-get o-start 'set-id))
+;; 	    `(eq definition-id ,(overlay-get o-start 'definition-id))))))
 
 
 
@@ -296,25 +295,16 @@
   ;; is null, all overlays after O-START are included.
 
   (when (null end) (setq end (point-max)))
-
-  (let (overlay-list)
-    ;; create list of all overlays corresponding to same entry between O-START
-    ;; and END
-    (setq overlay-list
-	  ;; Note: We subtract 1 from start and add 1 to end to catch overlays
-	  ;;       that end at start or start at end. This seems to give the
-	  ;;       same results as the old version of `auto-o-self-list'
-	  ;;       (above) in all circumstances.
-	  (auto-overlays-in
-	   (1- (overlay-get o-start 'delim-start)) (1+ end)
-	   (list
-	    '(identity auto-overlay)
-	    (list 'eq 'set-id (overlay-get o-start 'set-id))
-	    (list 'eq 'definition-id (overlay-get o-start 'definition-id)))))
-    ;; sort the list by start position, from first to last
-    (sort overlay-list
-	  (lambda (a b) (< (overlay-start a) (overlay-start b)))))
-)
+  ;; create list of all overlays corresponding to same entry between O-START and END
+  ;; Note: We subtract 1 from start and add 1 to end to catch overlays that
+  ;;       end at start or start at end. This seems to give the same results
+  ;;       as the old version of `auto-o-self-list' (above) in all
+  ;;       circumstances.
+  (sort (auto-overlays-in
+	 (1- (overlay-get o-start 'delim-start)) (1+ end)
+	 `(eq set-id ,(overlay-get o-start 'set-id))
+	 `(eq definition-id ,(overlay-get o-start 'definition-id)))
+	#'auto-overlay-<))
 
 
 ;;; auto-overlay-self.el ends here

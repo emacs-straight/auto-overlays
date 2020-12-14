@@ -1,4 +1,4 @@
-;;; auto-overlay-flat.el --- flat start/end-delimited automatic overlays  -*- lexical-binding: t; -*-
+;;; auto-overlay-flat.el --- flat start/end-delimited automatic overlays    -*- lexical-binding: t; -*-
 
 ;; Copyright (C) 2005-2020  Free Software Foundation, Inc
 
@@ -25,8 +25,8 @@
 
 ;;; Code:
 
-(require 'auto-overlays)
 (provide 'auto-overlay-flat)
+(require 'auto-overlays)
 
 
 ;; set flat overlay parsing and suicide functions, and indicate class requires
@@ -49,9 +49,8 @@
       ;; if match is within an existing overlay, ignore match
       (unless (auto-overlays-at-point
 	       (overlay-get o-match 'delim-end)  ; FIXME: is this right?
-	       `((identity auto-overlay)
-		 (eq set-id ,(overlay-get o-match 'set-id))
-		 (eq definition-id ,(overlay-get o-match 'definition-id))))
+	       `(eq set-id ,(overlay-get o-match 'set-id))
+	       `(eq definition-id ,(overlay-get o-match 'definition-id)))
 
 	;; otherwise, look for next end-match...
 	(let ((o-end (auto-o-next-flat-match o-match 'end)))
@@ -90,11 +89,12 @@
       ;; if match is within existing overlay with same set-d and definition-id...
       (when (setq o-parent
 		(car  ; FIXME: is this right?
-		 (auto-overlays-at-point
-		  (overlay-get o-match 'delim-start)  ; FIXME: is this right?
-		  `((identity auto-overlay)
-		    (eq set-id ,(overlay-get o-match 'set-id))
-		    (eq definition-id ,(overlay-get o-match 'definition-id))))))
+		 (sort
+		  (auto-overlays-at-point
+		   (overlay-get o-match 'delim-start)  ; FIXME: is this right?
+		   `(eq set-id ,(overlay-get o-match 'set-id))
+		   `(eq definition-id ,(overlay-get o-match 'definition-id)))
+		  #'auto-overlay-<)))
 
 	;; if overlay can simply be re-matched with new end-match, do so
 	(let ((o-end (overlay-get o-parent 'end))
@@ -170,21 +170,21 @@
   ;; O-MATCH in buffer, with same set-id and definition-id as O-MATCH.
 
   ;; get sorted list of matching overlays after O-MATCH
-  (let ((o-list
-	 (sort (auto-overlays-in
-		(overlay-start o-match) (point-max)  ; FIXME: is start right?
-		`((identity auto-overlay-match)
-		  (eq set-id ,(overlay-get o-match 'set-id))
-		  (eq definition-id ,(overlay-get o-match 'definition-id))
-		  (,(lambda (set-id definition-id regexp-id edge)
-		      (eq (auto-o-entry-edge set-id definition-id regexp-id)
-			  edge))
-		   (set-id definition-id regexp-id) (,edge))))
-	       (lambda (a b) (<= (overlay-start a) (overlay-start b))))))
+  (let ((o-list (sort
+		 (auto-overlays-in
+		  (overlay-start o-match) (point-max)  ; FIXME: is start right?
+		  '(identity auto-overlay-match)
+		  `(eq set-id ,(overlay-get o-match 'set-id))
+		  `(eq definition-id ,(overlay-get o-match 'definition-id))
+		  (list (lambda (set-id definition-id regexp-id edge)
+			  (eq (auto-o-regexp-edge set-id definition-id regexp-id)
+			      edge))
+			'(set-id definition-id regexp-id)
+			(list edge)))
+		 #'auto-overlay-<)))
     ;; if searching for same EDGE as O-MATCH, first overlay in list is always
     ;; O-MATCH itself, so we drop it
-    (if (eq (auto-o-edge o-match) edge) (nth 1 o-list) (car o-list)))
-)
+    (if (eq (auto-o-edge o-match) edge) (nth 1 o-list) (car o-list))))
 
 
 

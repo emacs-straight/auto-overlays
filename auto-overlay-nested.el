@@ -1,4 +1,4 @@
-;;; auto-overlay-nested.el --- nested start/end-delimited automatic overlays  -*- lexical-binding: t; -*-
+;;; auto-overlay-nested.el --- nested start/end-delimited automatic overlays    -*- lexical-binding: t; -*-
 
 ;; Copyright (C) 2005-2020  Free Software Foundation, Inc
 
@@ -25,8 +25,8 @@
 
 ;;; Code:
 
-(require 'auto-overlays)
 (provide 'auto-overlay-nested)
+(require 'auto-overlays)
 
 
 ;; set nested overlay parsing and suicide functions, and indicate class
@@ -114,7 +114,7 @@
     (cond
      ((eq (auto-o-edge o-match) 'start)
       (setq pos (overlay-get o-match 'delim-end))
-      (setq o-new (make-overlay pos pos nil nil 'rear-advance))
+      (setq o-new (make-overlay pos (if unmatched (point-max) pos) nil nil 'rear-advance))
       (overlay-put o-new 'auto-overlay t)
       (overlay-put o-new 'set-id (overlay-get o-match 'set-id))
       (overlay-put o-new 'definition-id (overlay-get o-match 'definition-id))
@@ -122,7 +122,8 @@
 
      ((eq (auto-o-edge o-match) 'end)
       (setq pos (overlay-get o-match 'delim-start))
-      (setq o-new (make-overlay pos pos nil nil 'rear-advance))
+      (setq o-new (make-overlay (if unmatched (point-min) pos) pos nil nil
+      'rear-advance))
       (overlay-put o-new 'auto-overlay t)
       (overlay-put o-new 'set-id (overlay-get o-match 'set-id))
       (overlay-put o-new 'definition-id (overlay-get o-match 'definition-id))
@@ -198,10 +199,8 @@
 			(if (eq (auto-o-edge o-match) 'start)
 			    (overlay-get o-match 'delim-end)
 			  (overlay-get o-match 'delim-start))
-			(list '(eq auto-overlay t)
-			      (list 'eq 'set-id (overlay-get o-match 'set-id))
-			      (list 'eq 'definition-id
-				    (overlay-get o-match 'definition-id)))))
+			`(eq set-id ,(overlay-get o-match 'set-id))
+			`(eq definition-id ,(overlay-get o-match 'definition-id))))
 	(o-parent (overlay-get o-match 'parent)))
     ;; sort the list by overlay length, i.e. from innermost to outermose
     (sort overlay-stack

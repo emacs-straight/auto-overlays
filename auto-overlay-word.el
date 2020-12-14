@@ -1,4 +1,4 @@
-;;; auto-overlay-word.el --- automatic overlays for single "words"  -*- lexical-binding: t; -*-
+;;; auto-overlay-word.el --- automatic overlays for single "words"    -*- lexical-binding: t; -*-
 
 ;; Copyright (C) 2005-2020  Free Software Foundation, Inc
 
@@ -25,8 +25,8 @@
 
 ;;; Code:
 
-(require 'auto-overlays)
 (provide 'auto-overlay-word)
+(require 'auto-overlays)
 
 
 ;; set word overlay parsing and suicide functions
